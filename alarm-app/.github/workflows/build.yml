@@ -8,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: alarm-app
     steps:
       - uses: actions/checkout@v4
 
@@ -25,6 +28,9 @@ jobs:
       - name: Generate Gradle Wrapper
         run: gradle wrapper --gradle-version 8.7
 
+      - name: Set SDK location
+        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
+
       - name: Build APK
         run: ./gradlew assembleDebug
 
@@ -32,4 +38,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: alarm-app
-          path: app/build/outputs/apk/debug/*.apk
+          path: alarm-app/app/build/outputs/apk/debug/*.apk
