@@ -8,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: alarm-app
     steps:
       - uses: actions/checkout@v4
 
@@ -32,4 +35,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: alarm-app
-          path: app/build/outputs/apk/debug/*.apk
+          path: alarm-app/app/build/outputs/apk/debug/*.apk
