@@ -54,7 +54,7 @@ class AlarmService : Service() {
         val min = 300_000L
         val max = 7_200_000L
         val raw = (-ln(Random.nextDouble())) * mean * 1.5 + Random.nextLong(-600_000, 600_000)
-        return raw.coerceIn(min, max)
+        return raw.toLong().coerceIn(min, max)
     }
 
     private fun createServiceNotification() =
