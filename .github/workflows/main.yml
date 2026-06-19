@@ -28,6 +28,9 @@ jobs:
       - name: Generate Gradle Wrapper
         run: gradle wrapper --gradle-version 8.7
 
+      - name: Set SDK location
+        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
+
       - name: Build APK
         run: ./gradlew assembleDebug
 
