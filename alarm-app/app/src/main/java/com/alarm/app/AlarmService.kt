@@ -1,6 +1,7 @@
 package com.alarm.app
 
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -27,6 +28,7 @@ class AlarmService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        isRunning = true
         startForeground(NOTIFICATION_ID, createServiceNotification())
     }
 
@@ -34,9 +36,11 @@ class AlarmService : Service() {
         scope.launch {
             while (isActive) {
                 val interval = randomInterval()
+                nextAlertTime = System.currentTimeMillis() + interval
                 delay(interval)
                 val alert = alerts.random()
                 showAlertNotification(alert)
+                nextAlertTime = 0
             }
         }
         return START_STICKY
@@ -45,15 +49,21 @@ class AlarmService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        isRunning = false
+        nextAlertTime = 0
         scope.cancel()
         super.onDestroy()
     }
 
     private fun randomInterval(): Long {
-        val mean = 900_000L
-        val min = 300_000L
-        val max = 7_200_000L
-        val raw = (-ln(Random.nextDouble())) * mean * 1.5 + Random.nextLong(-600_000, 600_000)
+        val prefs = getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
+        val minMin = prefs.getLong("min_interval", 5)
+        val maxMin = prefs.getLong("max_interval", 120)
+        val min = minMin * 60_000L
+        val max = maxMin * 60_000L
+        val mean = (min + max) / 2
+        val jitter = (max - min) / 8
+        val raw = (-ln(Random.nextDouble())) * mean * 1.5 + Random.nextLong(-jitter, jitter)
         return raw.toLong().coerceIn(min, max)
     }
 
@@ -80,6 +90,8 @@ class AlarmService : Service() {
     }
 
     companion object {
+        var nextAlertTime: Long = 0
+        var isRunning: Boolean = false
         const val CHANNEL_ID = "alarm_channel"
         const val NOTIFICATION_ID = 1
     }
