@@ -288,68 +288,113 @@ def build_caption(alert_name, strength, selected_regions, timestamp, is_clear=Fa
     return text
 
 
+def run_alert_cycle(alert_name, strength, selected):
+    """Send one alert + all-clear (used both in main loop and test mode)."""
+    timestamp = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    ids = [r[0] for r in selected]
+    names = [r[1] for r in selected]
+
+    print(f"[{timestamp}] {alert_name} (сила {strength}, {len(selected)} рег.)")
+    logging.info(f"ALERT: {alert_name}, strength={strength}, regions={len(selected)}")
+    send_termux_notification(alert_name, f"Сила: {strength} | Регионы ({len(selected)}): {', '.join(names)}")
+
+    caption = build_caption(alert_name, strength, selected, timestamp)
+    img = draw_map(ids)
+    ok = send_telegram_photo(img, caption)
+    logging.info(f"Telegram: {'OK' if ok else 'FAIL'}")
+    if not ok:
+        print("  Ошибка отправки в Telegram!")
+
+    # All-clear phase
+    timestamp_ac = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    caption_ac = build_caption(alert_name, strength, selected, timestamp_ac, is_clear=True)
+    img_ac = draw_map([])
+    ok_ac = send_telegram_photo(img_ac, caption_ac)
+    logging.info(f"Telegram all-clear: {'OK' if ok_ac else 'FAIL'}")
+    print(f"  Отбой отправлен")
+
+
+def print_help():
+    print("Использование: python termux_bot.py [опции]")
+    print()
+    print("Опции:")
+    print("  --help          Показать эту справку")
+    print("  --test          Отправить одну тестовую тревогу и выйти")
+    print("  --min N         Мин. интервал между тревогами, мин (по умолч. 5)")
+    print("  --max N         Макс. интервал между тревогами, мин (по умолч. 120)")
+    print("  --ac-min N      Мин. интервал до отбоя, мин (по умолч. 1)")
+    print("  --ac-max N      Макс. интервал до отбоя, мин (по умолч. 30)")
+    print()
+    print("Пример: python termux_bot.py --min 10 --max 60 --ac-min 2 --ac-max 15")
+
+
 def main():
     setup_logging()
     load_config()
 
-    logging.info("=== TERMUX БОТ ЗАПУЩЕН ===")
+    # Parse args
+    args = sys.argv[1:]
+    is_test = "--test" in args
+    if "--help" in args or "-h" in args:
+        print_help()
+        return
 
+    # Helper to get arg value
+    def get_arg(flag, default):
+        if flag in args:
+            idx = args.index(flag) + 1
+            if idx < len(args):
+                return int(args[idx])
+        return default
+
+    min_interval = get_arg("--min", 5)
+    max_interval = get_arg("--max", 120)
+    ac_min = get_arg("--ac-min", 1)
+    ac_max = get_arg("--ac-max", 30)
+
+    if min_interval > max_interval:
+        min_interval, max_interval = max_interval, min_interval
+        print("  Мин и макс интервал поменяны местами")
+    if ac_min > ac_max:
+        ac_min, ac_max = ac_max, ac_min
+        print("  Отбой мин и макс поменяны местами")
+
+    if is_test:
+        logging.info("=== ТЕСТОВЫЙ ЗАПУСК ===")
+        print("Тестовый запуск — отправляю одну тревогу...")
+        alert_name, alert_tag = random.choice(ALERTS)
+        strength = random_strength()
+        count = region_count(strength)
+        selected = select_regions(count)
+        run_alert_cycle(alert_name, strength, selected)
+        print("Тест завершён.")
+        return
+
+    logging.info("=== TERMUX БОТ ЗАПУЩЕН ===")
     print("=" * 50)
     print("  TERMUX БОТ ТРЕВОГ + КАРТА")
     print(f"  Канал: {CHANNEL_ID}")
+    print(f"  Интервал: {min_interval}-{max_interval} мин")
+    print(f"  Отбой: {ac_min}-{ac_max} мин")
     print("  Для остановки Ctrl+C")
     print("=" * 50)
 
     send_termux_notification("Бот тревог запущен", f"Канал: {CHANNEL_ID}")
 
     while True:
-        min_interval = 5
-        max_interval = 120
-        ac_min = 1
-        ac_max = 30
-
-        # Phase 1: wait for alert
         interval = random_interval(min_interval, max_interval)
         dt = datetime.fromtimestamp(time.time() + interval)
         print(f"[{datetime.now().strftime('%H:%M:%S')}] След. тревога через {interval/60:.1f} мин (~{dt.strftime('%H:%M')})")
         logging.info(f"Interval: {interval/60:.1f} min")
         time.sleep(interval / 1000)
 
-                # Generate alert
         alert_name, alert_tag = random.choice(ALERTS)
         strength = random_strength()
         count = region_count(strength)
         selected = select_regions(count)
-        timestamp = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+        run_alert_cycle(alert_name, strength, selected)
 
-        print(f"[{timestamp}] {alert_name} (сила {strength}, {count} рег.)")
-        logging.info(f"ALERT: {alert_name}, strength={strength}, regions={len(selected)}")
-
-        names = [r[1] for r in selected]
-        ids = [r[0] for r in selected]
-        local_msg = f"Сила: {strength} | Регионы ({len(selected)}): {', '.join(names)}"
-        send_termux_notification(alert_name, local_msg)
-
-        # Draw map + send to Telegram
-        caption = build_caption(alert_name, strength, selected, timestamp)
-        img = draw_map(ids)
-        ok = send_telegram_photo(img, caption)
-        logging.info(f"Telegram: {'OK' if ok else 'FAIL'}")
-
-        # Phase 2: wait for all clear
-        ac_interval = random_allclear_interval(ac_min, ac_max)
-        dt_ac = datetime.fromtimestamp(time.time() + ac_interval)
-        print(f"  Отбой через {ac_interval/60000:.1f} мин (~{dt_ac.strftime('%H:%M')})")
-        time.sleep(ac_interval / 1000)
-
-        # Send all clear
-        timestamp_ac = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-        caption_ac = build_caption(alert_name, strength, selected, timestamp_ac, is_clear=True)
-        img_ac = draw_map([])  # Empty highlight = normal map
-        ok_ac = send_telegram_photo(img_ac, caption_ac)
-        logging.info(f"Telegram all-clear: {'OK' if ok_ac else 'FAIL'}")
-
-        print(f"  Отбой отправлен")
+        print(f"  Ожидание перед след. циклом")
         time.sleep(5)
 
 
