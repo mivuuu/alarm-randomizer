@@ -315,7 +315,7 @@ def random_allclear_interval(ac_min, ac_max):
 
 
 def random_strength():
-    raw = (-math.log(random.random())) * 2.5 + 1
+    raw = (-math.log(random.random())) * 6 + 1
     return max(1, min(10, int(raw)))
 
 
