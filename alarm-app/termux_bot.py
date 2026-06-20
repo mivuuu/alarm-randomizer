@@ -291,6 +291,20 @@ def send_termux_notification(title, message):
         logging.error(f"termux-notification failed: {e}")
 
 
+def acquire_wake_lock():
+    try:
+        subprocess.run(["termux-wake-lock", "alarm-bot"], capture_output=True, timeout=5)
+    except:
+        pass
+
+
+def release_wake_lock():
+    try:
+        subprocess.run(["termux-wake-unlock", "alarm-bot"], capture_output=True, timeout=5)
+    except:
+        pass
+
+
 def random_interval(min_min, max_min):
     min_ms = min_min * 60_000
     max_ms = max_min * 60_000
@@ -378,7 +392,7 @@ def build_caption(alert_name, strength, selected_regions, timestamp, is_clear=Fa
 
 def run_alert_cycle(alert_name, strength, selected):
     """Send one alert + all-clear (used both in main loop and test mode)."""
-    timestamp = now().strftime("%y.%m.%d // %H:%M")
+    timestamp = now().strftime("%d.%m.%y // %H:%M")
     ids = [r[0] for r in selected]
     names = [r[1] for r in selected]
 
@@ -395,7 +409,7 @@ def run_alert_cycle(alert_name, strength, selected):
     logging.info(f"Telegram: OK (msg_id={msg_id})")
 
     # All-clear phase — edit the same message, dim the markers
-    timestamp_ac = now().strftime("%y.%m.%d // %H:%M")
+    timestamp_ac = now().strftime("%d.%m.%y // %H:%M")
     caption_ac = build_caption(alert_name, strength, selected, timestamp_ac, is_clear=True)
     img_ac = draw_map(ids, alert_name, is_clear=True)
     ok_ac = edit_telegram_photo(CHANNEL_ID, msg_id, img_ac, caption_ac)
@@ -469,6 +483,7 @@ def main():
     print("=" * 50)
 
     send_termux_notification("Бот тревог запущен", f"Канал: {CHANNEL_ID}")
+    acquire_wake_lock()
 
     while True:
         interval = random_interval(min_interval, max_interval)
@@ -491,8 +506,10 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
+        release_wake_lock()
         print("\nБот остановлен.")
         logging.info("=== БОТ ОСТАНОВЛЕН ===")
     except Exception as e:
+        release_wake_lock()
         print(f"\nОшибка: {e}")
         logging.error(f"FATAL: {e}", exc_info=True)
