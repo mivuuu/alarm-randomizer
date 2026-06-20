@@ -80,15 +80,9 @@ REGION_COORDS = {
 }
 
 ALERT_COLORS = {
-    "Воздушная тревога": (117, 0, 2),
+    "Воздушная тревога": (200, 30, 30),
     "Беспилотная опасность": (255, 223, 91),
     "Ракетная опасность": (232, 137, 73),
-}
-
-EMOJI_IDS = {
-    "💎": "6208427105277972363",
-    "🟨": "6325808686031701988",
-    "🟧": "6325363628635589126",
 }
 
 # Fallback grid layout (used when coordinates not set)
@@ -167,10 +161,6 @@ def load_font(size):
         return None
 
 
-def utf16_len(s):
-    return len(s.encode("utf-16-le")) // 2
-
-
 def draw_map(highlight_ids, alert_name=""):
     coords_set = any(v != (0, 0) for v in REGION_COORDS.values())
     if coords_set and os.path.exists(MAP_FILE):
@@ -240,7 +230,7 @@ def draw_map_grid(highlight_ids, alert_name=""):
     return img
 
 
-def send_telegram_photo(image, caption, entities=None):
+def send_telegram_photo(image, caption):
     if not BOT_TOKEN or not CHANNEL_ID:
         logging.error("Bot not configured")
         return False
@@ -250,9 +240,7 @@ def send_telegram_photo(image, caption, entities=None):
         buf.seek(0)
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
         files = {"photo": ("map.png", buf, "image/png")}
-        data = {"chat_id": CHANNEL_ID, "caption": caption}
-        if entities:
-            data["caption_entities"] = json.dumps(entities)
+        data = {"chat_id": CHANNEL_ID, "caption": caption, "parse_mode": "HTML"}
         r = requests.post(url, files=files, data=data, timeout=30)
         return r.status_code == 200
     except Exception as e:
@@ -312,73 +300,40 @@ def select_regions(count):
 
 
 def build_caption(alert_name, strength, selected_regions, timestamp, is_clear=False):
-    def build_entities(text):
-        entities = []
-        idx = text.find("卢空危图")
-        if idx >= 0:
-            offset = utf16_len(text[:idx])
-            entities.append({
-                "type": "text_link",
-                "offset": offset,
-                "length": utf16_len("卢空危图"),
-                "url": "https://t.me/+OEAf0yVzstcyM2Vi",
-            })
-        for emoji_char, emoji_id in EMOJI_IDS.items():
-            start = 0
-            while True:
-                idx = text.find(emoji_char, start)
-                if idx < 0:
-                    break
-                offset = utf16_len(text[:idx])
-                entities.append({
-                    "type": "custom_emoji",
-                    "offset": offset,
-                    "length": utf16_len(emoji_char),
-                    "custom_emoji_id": emoji_id,
-                })
-                start = idx + 1
-        return entities
+    if alert_name == "Воздушная тревога":
+        emoji = "🟥"
+    elif alert_name == "Беспилотная опасность":
+        emoji = "🟨"
+    else:
+        emoji = "🟧"
 
-    emoji_char, _ = next(
-        (c, i) for c, i in EMOJI_IDS.items() if c == (
-            "💎" if alert_name == "Воздушная тревога"
-            else "🟨" if alert_name == "Беспилотная опасность"
-            else "🟧"
-        )
+    regions_block = "\n".join(f"• {r[1]}" for r in selected_regions)
+
+    header = (
+        f'<b>Карта воздушной опасности в Люменарии | '
+        f'<a href="https://t.me/+OEAf0yVzstcyM2Vi">卢空危图</a>.</b>\n'
+        f"<i>{timestamp}</i>"
     )
 
     if is_clear:
-        lines = [
-            f"Карта воздушной опасности в Люменарии | 卢空危图.",
-            timestamp,
-            "",
-            f"{emoji_char} - {alert_name} — ОТБОЙ",
-        ]
-        for r in selected_regions:
-            lines.append(f"• {r[1]}")
-        text = "\n".join(lines)
+        text = (
+            f"{header}\n\n"
+            f"<b>{emoji} - {alert_name} — ОТБОЙ</b>\n"
+            f"<blockquote><b>{regions_block}</b></blockquote>"
+        )
     else:
-        lines = [
-            f"Карта воздушной опасности в Люменарии | 卢空危图.",
-            timestamp,
-            "",
-            "Условные обозначения:",
-            "💎 - Темно-красный: воздушная тревога",
-            "🟨 - Желтый: беспилотная опасность",
-            "🟧 - Оранжевый: ракетная опасность",
-            "",
-            f"{emoji_char} - {alert_name}",
-        ]
-        for r in selected_regions:
-            lines.append(f"• {r[1]}")
-        lines.append("")
-        lines.append("🟨 - Беспилотная опасность")
-        lines.append("")
-        lines.append("🟧 - Ракетная опасность")
-        text = "\n".join(lines)
-
-    entities = build_entities(text)
-    return text, entities
+        text = (
+            f"{header}\n\n"
+            f"<blockquote><b>Условные обозначения:\n"
+            f"🟥 - Красный: воздушная тревога\n"
+            f"🟨 - Желтый: беспилотная опасность\n"
+            f"🟧 - Оранжевый: ракетная опасность</b></blockquote>\n\n"
+            f"<b>{emoji} - {alert_name}</b>\n"
+            f"<blockquote><b>{regions_block}</b></blockquote>\n\n"
+            f"<b>🟨 - Беспилотная опасность</b>\n\n"
+            f"<b>🟧 - Ракетная опасность</b>"
+        )
+    return text
 
 
 def run_alert_cycle(alert_name, strength, selected):
@@ -391,18 +346,18 @@ def run_alert_cycle(alert_name, strength, selected):
     logging.info(f"ALERT: {alert_name}, strength={strength}, regions={len(selected)}")
     send_termux_notification(alert_name, f"Сила: {strength} | Регионы ({len(selected)}): {', '.join(names)}")
 
-    caption, entities = build_caption(alert_name, strength, selected, timestamp)
+    caption = build_caption(alert_name, strength, selected, timestamp)
     img = draw_map(ids, alert_name)
-    ok = send_telegram_photo(img, caption, entities)
+    ok = send_telegram_photo(img, caption)
     logging.info(f"Telegram: {'OK' if ok else 'FAIL'}")
     if not ok:
         print("  Ошибка отправки в Telegram!")
 
     # All-clear phase
     timestamp_ac = datetime.now().strftime("%y.%m.%d // %H:%M")
-    caption_ac, entities_ac = build_caption(alert_name, strength, selected, timestamp_ac, is_clear=True)
+    caption_ac = build_caption(alert_name, strength, selected, timestamp_ac, is_clear=True)
     img_ac = draw_map([], alert_name)
-    ok_ac = send_telegram_photo(img_ac, caption_ac, entities_ac)
+    ok_ac = send_telegram_photo(img_ac, caption_ac)
     logging.info(f"Telegram all-clear: {'OK' if ok_ac else 'FAIL'}")
     print(f"  Отбой отправлен")
 
