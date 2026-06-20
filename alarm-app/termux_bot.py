@@ -76,7 +76,19 @@ REGION_COORDS = {
     16: (1587, 850), 17: (1505, 952), 18: (1393, 1055), 19: (1249, 1167), 20: (1321, 1260),
     21: (1147, 1270), 22: (1126, 1147), 23: (973, 1126), 24: (993, 1239), 25: (819, 1147),
     26: (891, 1239), 27: (881, 1311), 28: (983, 1382), 29: (840, 1413), 30: (891, 1516),
-    31: (993, 1577), 32: (1044, 1690), 33: (236, 1454), 34: (891, 963),
+    31: (993, 1577), 32: (1044, 1690), 33: (236, 1454),     34: (891, 963),
+}
+
+ALERT_COLORS = {
+    "Воздушная тревога": (117, 0, 2),
+    "Беспилотная опасность": (255, 223, 91),
+    "Ракетная опасность": (232, 137, 73),
+}
+
+EMOJI_IDS = {
+    "💎": "6208427105277972363",
+    "🟨": "6325808686031701988",
+    "🟧": "6325363628635589126",
 }
 
 # Fallback grid layout (used when coordinates not set)
@@ -155,20 +167,23 @@ def load_font(size):
         return None
 
 
-def draw_map(highlight_ids):
+def utf16_len(s):
+    return len(s.encode("utf-16-le")) // 2
+
+
+def draw_map(highlight_ids, alert_name=""):
     coords_set = any(v != (0, 0) for v in REGION_COORDS.values())
     if coords_set and os.path.exists(MAP_FILE):
-        return draw_map_image(highlight_ids)
+        return draw_map_image(highlight_ids, alert_name)
     if not coords_set and os.path.exists(MAP_FILE):
         print("  ВНИМАНИЕ: координаты регионов не заданы. Используется схема.")
-    return draw_map_grid(highlight_ids)
+    return draw_map_grid(highlight_ids, alert_name)
 
 
-def draw_map_image(highlight_ids):
+def draw_map_image(highlight_ids, alert_name=""):
+    color = ALERT_COLORS.get(alert_name, (200, 40, 40))
     img = Image.open(MAP_FILE).convert("RGB")
     img_w, img_h = img.size
-    draw = ImageDraw.Draw(img, "RGBA")
-    font_num = load_font(max(10, min(img_w, img_h) // 60))
 
     overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
     o_draw = ImageDraw.Draw(overlay)
@@ -180,34 +195,24 @@ def draw_map_image(highlight_ids):
         r = max(6, min(img_w, img_h) // 80)
 
         if rid in highlight_ids:
+            cr, cg, cb = color
             for gr in range(r * 3, r, -max(1, r // 2)):
                 alpha = max(20, 80 - gr * 3)
-                o_draw.ellipse([x - gr, y - gr, x + gr, y + gr], fill=(200, 40, 40, alpha))
-            o_draw.ellipse([x - r, y - r, x + r, y + r], fill=(220, 30, 30, 220))
-            o_draw.ellipse([x - r + 3, y - r + 3, x + r - 3, y + r - 3], fill=(255, 80, 80, 220))
+                o_draw.ellipse([x - gr, y - gr, x + gr, y + gr], fill=(cr, cg, cb, alpha))
+            o_draw.ellipse([x - r, y - r, x + r, y + r], fill=(cr, cg, cb, 220))
+            o_draw.ellipse([x - r + 3, y - r + 3, x + r - 3, y + r - 3], fill=(min(cr + 60, 255), min(cg + 60, 255), min(cb + 60, 255), 220))
         else:
             o_draw.ellipse([x - r // 2, y - r // 2, x + r // 2, y + r // 2], fill=(60, 60, 60, 40))
 
-        if font_num:
-            o_draw.text((x - 5, y - r - 14), str(rid), fill=(255, 255, 255), font=font_num, stroke_width=2, stroke_fill=(0, 0, 0))
-
     img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
-
-    font_title = load_font(max(16, min(img_w, img_h) // 40))
-    if font_title:
-        draw2 = ImageDraw.Draw(img)
-        tw = draw2.textlength("КАРТА ГОСУДАРСТВА", font=font_title)
-        bx = int((img_w - tw) / 2 - 12)
-        draw2.rectangle([bx, 6, bx + int(tw) + 24, 34], fill=(255, 255, 255, 200))
-        draw2.text((img_w / 2, 20), "КАРТА ГОСУДАРСТВА", fill=(60, 40, 20), font=font_title, anchor="mt")
     return img
 
 
-def draw_map_grid(highlight_ids):
+def draw_map_grid(highlight_ids, alert_name=""):
+    color = ALERT_COLORS.get(alert_name, (200, 40, 40))
     img = Image.new("RGB", (GRID_W, GRID_H), (245, 235, 215))
     draw = ImageDraw.Draw(img, "RGBA")
     font_reg = load_font(13)
-    font_big = load_font(16)
 
     regions = get_region_data()
 
@@ -221,31 +226,21 @@ def draw_map_grid(highlight_ids):
         bg = (235, 222, 195)
         draw.rectangle([x1, y1, x2, y2], fill=bg, outline=(180, 160, 120), width=1)
 
-        if weight == 5:
-            draw.rectangle([x1, y1, x2, y2], outline=(200, 50, 50), width=2)
-
         if rid in highlight_ids:
             overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
             o_draw = ImageDraw.Draw(overlay)
-            o_draw.rectangle([x1, y1, x2, y2], fill=(200, 40, 40, 120))
+            o_draw.rectangle([x1, y1, x2, y2], fill=(*color, 120))
             img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
             draw = ImageDraw.Draw(img, "RGBA")
 
         if font_reg:
-            draw.text((cx - 6, cy - 12), str(rid), fill=(80, 60, 40), font=font_reg)
             short = name if len(name) < 14 else name[:12] + "."
             draw.text((cx - 6, cy + 4), short, fill=(120, 100, 80), font=font_reg)
-
-    if font_big:
-        draw.text((GRID_W / 2, 15), "КАРТА ГОСУДАРСТВА", fill=(80, 60, 40), font=font_big, anchor="mt")
-    if font_reg:
-        draw.text((GRID_W - 180, GRID_H - 60), "— фронт (кр.)", fill=(200, 50, 50), font=font_reg)
-        draw.text((GRID_W - 180, GRID_H - 44), "— тыл (зел.)", fill=(80, 150, 80), font=font_reg)
 
     return img
 
 
-def send_telegram_photo(image, caption):
+def send_telegram_photo(image, caption, entities=None):
     if not BOT_TOKEN or not CHANNEL_ID:
         logging.error("Bot not configured")
         return False
@@ -255,7 +250,9 @@ def send_telegram_photo(image, caption):
         buf.seek(0)
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
         files = {"photo": ("map.png", buf, "image/png")}
-        data = {"chat_id": CHANNEL_ID, "caption": caption, "parse_mode": "HTML"}
+        data = {"chat_id": CHANNEL_ID, "caption": caption}
+        if entities:
+            data["caption_entities"] = json.dumps(entities)
         r = requests.post(url, files=files, data=data, timeout=30)
         return r.status_code == 200
     except Exception as e:
@@ -315,31 +312,78 @@ def select_regions(count):
 
 
 def build_caption(alert_name, strength, selected_regions, timestamp, is_clear=False):
-    names = [r[1] for r in selected_regions]
-    ids = [str(r[0]) for r in selected_regions]
-    regions_str = ", ".join(names)
+    def build_entities(text):
+        entities = []
+        idx = text.find("卢空危图")
+        if idx >= 0:
+            offset = utf16_len(text[:idx])
+            entities.append({
+                "type": "text_link",
+                "offset": offset,
+                "length": utf16_len("卢空危图"),
+                "url": "https://t.me/+OEAf0yVzstcyM2Vi",
+            })
+        for emoji_char, emoji_id in EMOJI_IDS.items():
+            start = 0
+            while True:
+                idx = text.find(emoji_char, start)
+                if idx < 0:
+                    break
+                offset = utf16_len(text[:idx])
+                entities.append({
+                    "type": "custom_emoji",
+                    "offset": offset,
+                    "length": utf16_len(emoji_char),
+                    "custom_emoji_id": emoji_id,
+                })
+                start = idx + 1
+        return entities
+
+    emoji_char, _ = next(
+        (c, i) for c, i in EMOJI_IDS.items() if c == (
+            "💎" if alert_name == "Воздушная тревога"
+            else "🟨" if alert_name == "Беспилотная опасность"
+            else "🟧"
+        )
+    )
 
     if is_clear:
-        text = (
-            f"<b>{alert_name} — ОТБОЙ</b>\n\n"
-            f"Регионы ({len(selected_regions)}): {regions_str}\n"
-            f"Угроза миновала\n\n"
-            f"<i>{timestamp}</i>"
-        )
+        lines = [
+            f"Карта воздушной опасности в Люменарии | 卢空危图.",
+            timestamp,
+            "",
+            f"{emoji_char} - {alert_name} — ОТБОЙ",
+        ]
+        for r in selected_regions:
+            lines.append(f"• {r[1]}")
+        text = "\n".join(lines)
     else:
-        text = (
-            f"<b>{alert_name}</b>\n\n"
-            f"Сила атаки: {strength}\n"
-            f"Регионы ({len(selected_regions)}): {regions_str}\n"
-            f"Номера: {', '.join(ids)}\n\n"
-            f"<i>{timestamp}</i>"
-        )
-    return text
+        lines = [
+            f"Карта воздушной опасности в Люменарии | 卢空危图.",
+            timestamp,
+            "",
+            "Условные обозначения:",
+            "💎 - Темно-красный: воздушная тревога",
+            "🟨 - Желтый: беспилотная опасность",
+            "🟧 - Оранжевый: ракетная опасность",
+            "",
+            f"{emoji_char} - {alert_name}",
+        ]
+        for r in selected_regions:
+            lines.append(f"• {r[1]}")
+        lines.append("")
+        lines.append("🟨 - Беспилотная опасность")
+        lines.append("")
+        lines.append("🟧 - Ракетная опасность")
+        text = "\n".join(lines)
+
+    entities = build_entities(text)
+    return text, entities
 
 
 def run_alert_cycle(alert_name, strength, selected):
     """Send one alert + all-clear (used both in main loop and test mode)."""
-    timestamp = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    timestamp = datetime.now().strftime("%y.%m.%d // %H:%M")
     ids = [r[0] for r in selected]
     names = [r[1] for r in selected]
 
@@ -347,18 +391,18 @@ def run_alert_cycle(alert_name, strength, selected):
     logging.info(f"ALERT: {alert_name}, strength={strength}, regions={len(selected)}")
     send_termux_notification(alert_name, f"Сила: {strength} | Регионы ({len(selected)}): {', '.join(names)}")
 
-    caption = build_caption(alert_name, strength, selected, timestamp)
-    img = draw_map(ids)
-    ok = send_telegram_photo(img, caption)
+    caption, entities = build_caption(alert_name, strength, selected, timestamp)
+    img = draw_map(ids, alert_name)
+    ok = send_telegram_photo(img, caption, entities)
     logging.info(f"Telegram: {'OK' if ok else 'FAIL'}")
     if not ok:
         print("  Ошибка отправки в Telegram!")
 
     # All-clear phase
-    timestamp_ac = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-    caption_ac = build_caption(alert_name, strength, selected, timestamp_ac, is_clear=True)
-    img_ac = draw_map([])
-    ok_ac = send_telegram_photo(img_ac, caption_ac)
+    timestamp_ac = datetime.now().strftime("%y.%m.%d // %H:%M")
+    caption_ac, entities_ac = build_caption(alert_name, strength, selected, timestamp_ac, is_clear=True)
+    img_ac = draw_map([], alert_name)
+    ok_ac = send_telegram_photo(img_ac, caption_ac, entities_ac)
     logging.info(f"Telegram all-clear: {'OK' if ok_ac else 'FAIL'}")
     print(f"  Отбой отправлен")
 
