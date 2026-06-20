@@ -166,16 +166,16 @@ def load_font(size):
         return None
 
 
-def draw_map(highlight_ids, alert_name=""):
+def draw_map(highlight_ids, alert_name="", is_clear=False):
     coords_set = any(v != (0, 0) for v in REGION_COORDS.values())
     if coords_set and os.path.exists(MAP_FILE):
-        return draw_map_image(highlight_ids, alert_name)
+        return draw_map_image(highlight_ids, alert_name, is_clear)
     if not coords_set and os.path.exists(MAP_FILE):
         print("  ВНИМАНИЕ: координаты регионов не заданы. Используется схема.")
-    return draw_map_grid(highlight_ids, alert_name)
+    return draw_map_grid(highlight_ids, alert_name, is_clear)
 
 
-def draw_map_image(highlight_ids, alert_name=""):
+def draw_map_image(highlight_ids, alert_name="", is_clear=False):
     color = ALERT_COLORS.get(alert_name, (200, 40, 40))
     img = Image.open(MAP_FILE).convert("RGB")
     img_w, img_h = img.size
@@ -191,11 +191,15 @@ def draw_map_image(highlight_ids, alert_name=""):
 
         if rid in highlight_ids:
             cr, cg, cb = color
-            for gr in range(r * 3, r, -max(1, r // 2)):
-                alpha = max(20, 80 - gr * 3)
-                o_draw.ellipse([x - gr, y - gr, x + gr, y + gr], fill=(cr, cg, cb, alpha))
-            o_draw.ellipse([x - r, y - r, x + r, y + r], fill=(cr, cg, cb, 220))
-            o_draw.ellipse([x - r + 3, y - r + 3, x + r - 3, y + r - 3], fill=(min(cr + 60, 255), min(cg + 60, 255), min(cb + 60, 255), 220))
+            if is_clear:
+                o_draw.ellipse([x - r, y - r, x + r, y + r], fill=(cr, cg, cb, 60))
+                o_draw.ellipse([x - r // 2, y - r // 2, x + r // 2, y + r // 2], fill=(cr, cg, cb, 40))
+            else:
+                for gr in range(r * 3, r, -max(1, r // 2)):
+                    alpha = max(20, 80 - gr * 3)
+                    o_draw.ellipse([x - gr, y - gr, x + gr, y + gr], fill=(cr, cg, cb, alpha))
+                o_draw.ellipse([x - r, y - r, x + r, y + r], fill=(cr, cg, cb, 220))
+                o_draw.ellipse([x - r + 3, y - r + 3, x + r - 3, y + r - 3], fill=(min(cr + 60, 255), min(cg + 60, 255), min(cb + 60, 255), 220))
         else:
             o_draw.ellipse([x - r // 2, y - r // 2, x + r // 2, y + r // 2], fill=(60, 60, 60, 40))
 
@@ -203,7 +207,7 @@ def draw_map_image(highlight_ids, alert_name=""):
     return img
 
 
-def draw_map_grid(highlight_ids, alert_name=""):
+def draw_map_grid(highlight_ids, alert_name="", is_clear=False):
     color = ALERT_COLORS.get(alert_name, (200, 40, 40))
     img = Image.new("RGB", (GRID_W, GRID_H), (245, 235, 215))
     draw = ImageDraw.Draw(img, "RGBA")
@@ -224,7 +228,8 @@ def draw_map_grid(highlight_ids, alert_name=""):
         if rid in highlight_ids:
             overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
             o_draw = ImageDraw.Draw(overlay)
-            o_draw.rectangle([x1, y1, x2, y2], fill=(*color, 120))
+            alpha = 30 if is_clear else 120
+            o_draw.rectangle([x1, y1, x2, y2], fill=(*color, alpha))
             img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
             draw = ImageDraw.Draw(img, "RGBA")
 
@@ -389,10 +394,10 @@ def run_alert_cycle(alert_name, strength, selected):
         return
     logging.info(f"Telegram: OK (msg_id={msg_id})")
 
-    # All-clear phase — edit the same message
+    # All-clear phase — edit the same message, dim the markers
     timestamp_ac = now().strftime("%y.%m.%d // %H:%M")
     caption_ac = build_caption(alert_name, strength, selected, timestamp_ac, is_clear=True)
-    img_ac = draw_map([], alert_name)
+    img_ac = draw_map(ids, alert_name, is_clear=True)
     ok_ac = edit_telegram_photo(CHANNEL_ID, msg_id, img_ac, caption_ac)
     logging.info(f"Telegram all-clear: {'OK' if ok_ac else 'FAIL'}")
     print(f"  Отбой редактирован")
