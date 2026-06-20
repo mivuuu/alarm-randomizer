@@ -247,9 +247,32 @@ def send_telegram_photo(image, caption):
         files = {"photo": ("map.png", buf, "image/png")}
         data = {"chat_id": CHANNEL_ID, "caption": caption, "parse_mode": "HTML"}
         r = requests.post(url, files=files, data=data, timeout=30)
-        return r.status_code == 200
+        if r.status_code == 200:
+            return r.json().get("result", {}).get("message_id")
+        return None
     except Exception as e:
         logging.error(f"Telegram send failed: {e}")
+        return None
+
+
+def edit_telegram_photo(chat_id, message_id, image, caption):
+    try:
+        buf = BytesIO()
+        image.save(buf, format="PNG")
+        buf.seek(0)
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageMedia"
+        media = {
+            "type": "photo",
+            "media": "attach://photo",
+            "caption": caption,
+            "parse_mode": "HTML",
+        }
+        files = {"photo": ("map.png", buf, "image/png")}
+        data = {"chat_id": chat_id, "message_id": message_id, "media": json.dumps(media)}
+        r = requests.post(url, files=files, data=data, timeout=30)
+        return r.status_code == 200
+    except Exception as e:
+        logging.error(f"Telegram edit failed: {e}")
         return False
 
 
@@ -323,8 +346,15 @@ def build_caption(alert_name, strength, selected_regions, timestamp, is_clear=Fa
     if is_clear:
         text = (
             f"{header}\n\n"
+            f"✅ <b>ОТБОЙ</b>\n\n"
+            f"<blockquote><b>Условные обозначения:\n"
+            f"🟥 - Красный: воздушная тревога\n"
+            f"🟨 - Желтый: беспилотная опасность\n"
+            f"🟧 - Оранжевый: ракетная опасность</b></blockquote>\n\n"
             f"<b>{emoji} - {alert_name} — ОТБОЙ</b>\n"
-            f"<blockquote><b>{regions_block}</b></blockquote>"
+            f"<blockquote><b>{regions_block}</b></blockquote>\n\n"
+            f"<b>🟨 - Беспилотная опасность</b>\n\n"
+            f"<b>🟧 - Ракетная опасность</b>"
         )
     else:
         text = (
@@ -353,18 +383,19 @@ def run_alert_cycle(alert_name, strength, selected):
 
     caption = build_caption(alert_name, strength, selected, timestamp)
     img = draw_map(ids, alert_name)
-    ok = send_telegram_photo(img, caption)
-    logging.info(f"Telegram: {'OK' if ok else 'FAIL'}")
-    if not ok:
+    msg_id = send_telegram_photo(img, caption)
+    if not msg_id:
         print("  Ошибка отправки в Telegram!")
+        return
+    logging.info(f"Telegram: OK (msg_id={msg_id})")
 
-    # All-clear phase
+    # All-clear phase — edit the same message
     timestamp_ac = now().strftime("%y.%m.%d // %H:%M")
     caption_ac = build_caption(alert_name, strength, selected, timestamp_ac, is_clear=True)
     img_ac = draw_map([], alert_name)
-    ok_ac = send_telegram_photo(img_ac, caption_ac)
+    ok_ac = edit_telegram_photo(CHANNEL_ID, msg_id, img_ac, caption_ac)
     logging.info(f"Telegram all-clear: {'OK' if ok_ac else 'FAIL'}")
-    print(f"  Отбой отправлен")
+    print(f"  Отбой редактирован")
 
 
 def print_help():
