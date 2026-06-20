@@ -166,17 +166,16 @@ def load_font(size):
         return None
 
 
-def draw_map(highlight_ids, alert_name="", is_clear=False):
+def draw_map(region_types, is_clear=False):
     coords_set = any(v != (0, 0) for v in REGION_COORDS.values())
     if coords_set and os.path.exists(MAP_FILE):
-        return draw_map_image(highlight_ids, alert_name, is_clear)
+        return draw_map_image(region_types, is_clear)
     if not coords_set and os.path.exists(MAP_FILE):
         print("  ВНИМАНИЕ: координаты регионов не заданы. Используется схема.")
-    return draw_map_grid(highlight_ids, alert_name, is_clear)
+    return draw_map_grid(region_types, is_clear)
 
 
-def draw_map_image(highlight_ids, alert_name="", is_clear=False):
-    color = ALERT_COLORS.get(alert_name, (200, 40, 40))
+def draw_map_image(region_types, is_clear=False):
     img = Image.open(MAP_FILE).convert("RGB")
     img_w, img_h = img.size
 
@@ -189,7 +188,8 @@ def draw_map_image(highlight_ids, alert_name="", is_clear=False):
             continue
         r = max(6, min(img_w, img_h) // 80)
 
-        if rid in highlight_ids:
+        if rid in region_types:
+            color = ALERT_COLORS.get(region_types[rid], (200, 40, 40))
             cr, cg, cb = color
             if is_clear:
                 o_draw.ellipse([x - r, y - r, x + r, y + r], fill=(cr, cg, cb, 60))
@@ -207,8 +207,7 @@ def draw_map_image(highlight_ids, alert_name="", is_clear=False):
     return img
 
 
-def draw_map_grid(highlight_ids, alert_name="", is_clear=False):
-    color = ALERT_COLORS.get(alert_name, (200, 40, 40))
+def draw_map_grid(region_types, is_clear=False):
     img = Image.new("RGB", (GRID_W, GRID_H), (245, 235, 215))
     draw = ImageDraw.Draw(img, "RGBA")
     font_reg = load_font(13)
@@ -225,7 +224,8 @@ def draw_map_grid(highlight_ids, alert_name="", is_clear=False):
         bg = (235, 222, 195)
         draw.rectangle([x1, y1, x2, y2], fill=bg, outline=(180, 160, 120), width=1)
 
-        if rid in highlight_ids:
+        if rid in region_types:
+            color = ALERT_COLORS.get(region_types[rid], (200, 40, 40))
             overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
             o_draw = ImageDraw.Draw(overlay)
             alpha = 30 if is_clear else 120
@@ -336,8 +336,12 @@ def select_regions(count):
     return result
 
 
-def build_caption(alert_name, strength, selected_regions, timestamp, is_clear=False):
-    regions_block = "\n".join(f"• {r[1]}" for r in selected_regions)
+def build_caption(selected, region_types, timestamp, is_clear=False):
+    groups = {"Воздушная тревога": [], "Беспилотная опасность": [], "Ракетная опасность": []}
+    for rid, name, weight in selected:
+        at = region_types.get(rid)
+        if at in groups:
+            groups[at].append(name)
 
     header = (
         f'<b>Карта воздушной опасности в Люменарии | '
@@ -345,75 +349,68 @@ def build_caption(alert_name, strength, selected_regions, timestamp, is_clear=Fa
         f"<i>{timestamp}</i>"
     )
 
+    type_order = [
+        ("🟥", "Воздушная тревога"),
+        ("🟨", "Беспилотная опасность"),
+        ("🟧", "Ракетная опасность"),
+    ]
+    sections = []
+    for e, name in type_order:
+        regs = groups.get(name, [])
+        if regs:
+            block = "\n".join(f"• {r}" for r in regs)
+            if is_clear:
+                sections.append(f"<b>{e} - {name} — ОТБОЙ</b>\n<blockquote><b>{block}</b></blockquote>")
+            else:
+                sections.append(f"<b>{e} - {name}</b>\n<blockquote><b>{block}</b></blockquote>")
+        else:
+            sections.append(f"<b>{e} - {name}</b>")
+
+    legend = (
+        f"<blockquote><b>Условные обозначения:\n"
+        f"🟥 - Красный: воздушная тревога\n"
+        f"🟨 - Желтый: беспилотная опасность\n"
+        f"🟧 - Оранжевый: ракетная опасность</b></blockquote>"
+    )
+
     if is_clear:
-        types = [
-            ("🟥", "Воздушная тревога"),
-            ("🟨", "Беспилотная опасность"),
-            ("🟧", "Ракетная опасность"),
-        ]
-        sections = []
-        for e, name in types:
-            if name == alert_name:
-                sections.append(f"<b>{e} - {name} — ОТБОЙ</b>\n<blockquote><b>{regions_block}</b></blockquote>")
-            else:
-                sections.append(f"<b>{e} - {name}</b>")
-        text = (
-            f"{header}\n\n"
-            f"✅ <b>ОТБОЙ</b>\n\n"
-            f"<blockquote><b>Условные обозначения:\n"
-            f"🟥 - Красный: воздушная тревога\n"
-            f"🟨 - Желтый: беспилотная опасность\n"
-            f"🟧 - Оранжевый: ракетная опасность</b></blockquote>\n\n"
-            + "\n\n".join(sections)
-        )
+        text = f"{header}\n\n✅ <b>ОТБОЙ</b>\n\n{legend}\n\n" + "\n\n".join(sections)
     else:
-        types = [
-            ("🟥", "Воздушная тревога"),
-            ("🟨", "Беспилотная опасность"),
-            ("🟧", "Ракетная опасность"),
-        ]
-        sections = []
-        for e, name in types:
-            if name == alert_name:
-                sections.append(f"<b>{e} - {name}</b>\n<blockquote><b>{regions_block}</b></blockquote>")
-            else:
-                sections.append(f"<b>{e} - {name}</b>")
-        text = (
-            f"{header}\n\n"
-            f"<blockquote><b>Условные обозначения:\n"
-            f"🟥 - Красный: воздушная тревога\n"
-            f"🟨 - Желтый: беспилотная опасность\n"
-            f"🟧 - Оранжевый: ракетная опасность</b></blockquote>\n\n"
-            + "\n\n".join(sections)
-        )
+        text = f"{header}\n\n{legend}\n\n" + "\n\n".join(sections)
     return text
 
 
-def run_alert_cycle(alert_name, strength, selected, ac_min=1, ac_max=30):
-    """Send one alert + all-clear (used both in main loop and test mode)."""
+def run_alert_cycle(strength, selected, region_types, ac_min=1, ac_max=30):
+    """Send combined alert + all-clear."""
     timestamp = now().strftime("%d.%m.%y // %H:%M")
     ids = [r[0] for r in selected]
     names = [r[1] for r in selected]
 
-    print(f"[{timestamp}] {alert_name} (сила {strength}, {len(selected)} рег.)")
-    logging.info(f"ALERT: {alert_name}, strength={strength}, regions={len(selected)}")
-    send_termux_notification(alert_name, f"Сила: {strength} | Регионы ({len(selected)}): {', '.join(names)}")
+    type_counts = {}
+    for rid in ids:
+        at = region_types[rid]
+        type_counts[at] = type_counts.get(at, 0) + 1
+    type_desc = ", ".join(f"{n}: {c}" for n, c in type_counts.items())
 
-    caption = build_caption(alert_name, strength, selected, timestamp)
-    img = draw_map(ids, alert_name)
+    print(f"[{timestamp}] Комбинированная ({type_desc}) — {len(selected)} рег.")
+    logging.info(f"ALERT: type={type_desc}, regions={len(selected)}")
+    send_termux_notification("Комбинированная тревога", f"{type_desc} — Регионы ({len(selected)}): {', '.join(names)}")
+
+    caption = build_caption(selected, region_types, timestamp)
+    img = draw_map(region_types)
     msg_id = send_telegram_photo(img, caption)
     if not msg_id:
         print("  Ошибка отправки в Telegram!")
         return
     logging.info(f"Telegram: OK (msg_id={msg_id})")
 
-    # All-clear phase — wait, then edit caption of the same message
+    # All-clear phase
     delay_ms = random_allclear_interval(ac_min, ac_max)
     print(f"  Отбой через {delay_ms/60000:.1f} мин")
     logging.info(f"All-clear delay: {delay_ms/60000:.1f} min")
     time.sleep(delay_ms / 1000)
     timestamp_ac = now().strftime("%d.%m.%y // %H:%M")
-    caption_ac = build_caption(alert_name, strength, selected, timestamp_ac, is_clear=True)
+    caption_ac = build_caption(selected, region_types, timestamp_ac, is_clear=True)
     ok_ac = edit_telegram_caption(CHANNEL_ID, msg_id, caption_ac)
     logging.info(f"Telegram all-clear: {'OK' if ok_ac else 'FAIL'}")
     print(f"  Отбой редактирован")
@@ -467,11 +464,11 @@ def main():
     if is_test:
         logging.info("=== ТЕСТОВЫЙ ЗАПУСК ===")
         print("Тестовый запуск — отправляю одну тревогу...")
-        alert_name, alert_tag = random.choice(ALERTS)
         strength = random_strength()
         count = region_count(strength)
         selected = select_regions(count)
-        run_alert_cycle(alert_name, strength, selected, ac_min, ac_max)
+        region_types = {r[0]: random.choice(ALERTS)[0] for r in selected}
+        run_alert_cycle(strength, selected, region_types, ac_min, ac_max)
         print("Тест завершён.")
         return
 
@@ -494,11 +491,11 @@ def main():
         logging.info(f"Interval: {interval/60000:.1f} min")
         time.sleep(interval / 1000)
 
-        alert_name, alert_tag = random.choice(ALERTS)
         strength = random_strength()
         count = region_count(strength)
         selected = select_regions(count)
-        run_alert_cycle(alert_name, strength, selected, ac_min, ac_max)
+        region_types = {r[0]: random.choice(ALERTS)[0] for r in selected}
+        run_alert_cycle(strength, selected, region_types, ac_min, ac_max)
 
         print(f"  Ожидание перед след. циклом")
         time.sleep(5)
