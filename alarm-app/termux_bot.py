@@ -7,6 +7,11 @@ import json
 import os
 import sys
 from datetime import datetime
+try:
+    from zoneinfo import ZoneInfo
+    TZ = ZoneInfo("Europe/Kaliningrad")
+except ImportError:
+    TZ = None
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 import math
@@ -100,6 +105,10 @@ GRID_PAD_L = 60
 GRID_PAD_T = 50
 GRID_CELL_W = (GRID_W - GRID_PAD_L - 40) / 6
 GRID_CELL_H = (GRID_H - GRID_PAD_T - 40) / 6
+
+
+def now():
+    return datetime.now(TZ) if TZ else datetime.now()
 
 
 def setup_logging():
@@ -338,7 +347,7 @@ def build_caption(alert_name, strength, selected_regions, timestamp, is_clear=Fa
 
 def run_alert_cycle(alert_name, strength, selected):
     """Send one alert + all-clear (used both in main loop and test mode)."""
-    timestamp = datetime.now().strftime("%y.%m.%d // %H:%M")
+    timestamp = now().strftime("%y.%m.%d // %H:%M")
     ids = [r[0] for r in selected]
     names = [r[1] for r in selected]
 
@@ -354,7 +363,7 @@ def run_alert_cycle(alert_name, strength, selected):
         print("  Ошибка отправки в Telegram!")
 
     # All-clear phase
-    timestamp_ac = datetime.now().strftime("%y.%m.%d // %H:%M")
+    timestamp_ac = now().strftime("%y.%m.%d // %H:%M")
     caption_ac = build_caption(alert_name, strength, selected, timestamp_ac, is_clear=True)
     img_ac = draw_map([], alert_name)
     ok_ac = send_telegram_photo(img_ac, caption_ac)
@@ -431,9 +440,9 @@ def main():
 
     while True:
         interval = random_interval(min_interval, max_interval)
-        dt = datetime.fromtimestamp(time.time() + interval)
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] След. тревога через {interval/60:.1f} мин (~{dt.strftime('%H:%M')})")
-        logging.info(f"Interval: {interval/60:.1f} min")
+        dt = datetime.fromtimestamp(time.time() + interval / 1000)
+        print(f"[{now().strftime('%H:%M:%S')}] След. тревога через {interval/60000:.1f} мин (~{dt.strftime('%H:%M')})")
+        logging.info(f"Interval: {interval/60000:.1f} min")
         time.sleep(interval / 1000)
 
         alert_name, alert_tag = random.choice(ALERTS)
