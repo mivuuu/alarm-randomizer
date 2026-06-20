@@ -6,12 +6,8 @@ import subprocess
 import json
 import os
 import sys
-from datetime import datetime
-try:
-    from zoneinfo import ZoneInfo
-    TZ = ZoneInfo("Europe/Kaliningrad")
-except ImportError:
-    TZ = None
+from datetime import datetime, timezone, timedelta
+TZ = timezone(timedelta(hours=2))
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 import math
@@ -108,7 +104,7 @@ GRID_CELL_H = (GRID_H - GRID_PAD_T - 40) / 6
 
 
 def now():
-    return datetime.now(TZ) if TZ else datetime.now()
+    return datetime.now(TZ)
 
 
 def setup_logging():
