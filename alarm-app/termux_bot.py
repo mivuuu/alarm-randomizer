@@ -389,7 +389,7 @@ def build_caption(alert_name, strength, selected_regions, timestamp, is_clear=Fa
     return text
 
 
-def run_alert_cycle(alert_name, strength, selected):
+def run_alert_cycle(alert_name, strength, selected, ac_min=1, ac_max=30):
     """Send one alert + all-clear (used both in main loop and test mode)."""
     timestamp = now().strftime("%d.%m.%y // %H:%M")
     ids = [r[0] for r in selected]
@@ -407,7 +407,11 @@ def run_alert_cycle(alert_name, strength, selected):
         return
     logging.info(f"Telegram: OK (msg_id={msg_id})")
 
-    # All-clear phase — edit caption of the same message
+    # All-clear phase — wait, then edit caption of the same message
+    delay_ms = random_allclear_interval(ac_min, ac_max)
+    print(f"  Отбой через {delay_ms/60000:.1f} мин")
+    logging.info(f"All-clear delay: {delay_ms/60000:.1f} min")
+    time.sleep(delay_ms / 1000)
     timestamp_ac = now().strftime("%d.%m.%y // %H:%M")
     caption_ac = build_caption(alert_name, strength, selected, timestamp_ac, is_clear=True)
     ok_ac = edit_telegram_caption(CHANNEL_ID, msg_id, caption_ac)
@@ -467,7 +471,7 @@ def main():
         strength = random_strength()
         count = region_count(strength)
         selected = select_regions(count)
-        run_alert_cycle(alert_name, strength, selected)
+        run_alert_cycle(alert_name, strength, selected, ac_min, ac_max)
         print("Тест завершён.")
         return
 
@@ -494,7 +498,7 @@ def main():
         strength = random_strength()
         count = region_count(strength)
         selected = select_regions(count)
-        run_alert_cycle(alert_name, strength, selected)
+        run_alert_cycle(alert_name, strength, selected, ac_min, ac_max)
 
         print(f"  Ожидание перед след. циклом")
         time.sleep(5)
