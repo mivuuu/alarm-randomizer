@@ -281,6 +281,12 @@ def send_termux_notification(title, message):
         logging.error(f"termux-notification failed: {e}")
 
 
+def precise_sleep(ms):
+    target = time.monotonic() + ms / 1000
+    while time.monotonic() < target:
+        time.sleep(min(1, target - time.monotonic()))
+
+
 def acquire_wake_lock():
     try:
         subprocess.run(["termux-wake-lock", "alarm-bot"], capture_output=True, timeout=5)
@@ -408,7 +414,7 @@ def run_alert_cycle(strength, selected, region_types, ac_min=1, ac_max=30):
     delay_ms = random_allclear_interval(ac_min, ac_max)
     print(f"  Отбой через {delay_ms/60000:.1f} мин")
     logging.info(f"All-clear delay: {delay_ms/60000:.1f} min")
-    time.sleep(delay_ms / 1000)
+    precise_sleep(delay_ms)
     timestamp_ac = now().strftime("%d.%m.%y // %H:%M")
     caption_ac = build_caption(selected, region_types, timestamp_ac, is_clear=True)
     ok_ac = edit_telegram_caption(CHANNEL_ID, msg_id, caption_ac)
@@ -489,7 +495,7 @@ def main():
         dt = datetime.fromtimestamp(time.time() + interval / 1000)
         print(f"[{now().strftime('%H:%M:%S')}] След. тревога через {interval/60000:.1f} мин (~{dt.strftime('%H:%M')})")
         logging.info(f"Interval: {interval/60000:.1f} min")
-        time.sleep(interval / 1000)
+        precise_sleep(interval)
 
         strength = random_strength()
         count = region_count(strength)
@@ -498,7 +504,7 @@ def main():
         run_alert_cycle(strength, selected, region_types, ac_min, ac_max)
 
         print(f"  Ожидание перед след. циклом")
-        time.sleep(5)
+        precise_sleep(5000)
 
 
 if __name__ == "__main__":
