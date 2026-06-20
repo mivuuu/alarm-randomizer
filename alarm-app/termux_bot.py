@@ -229,7 +229,7 @@ def random_interval(min_min, max_min):
     max_ms = max_min * 60_000
     mean = (min_ms + max_ms) / 2
     jitter = (max_ms - min_ms) / 8
-    raw = (-math.log(random.random())) * mean * 1.5 + random.randint(-jitter, jitter)
+    raw = (-math.log(random.random())) * mean * 1.5 + random.randint(-int(jitter), int(jitter))
     return int(max(min_ms, min(max_ms, raw)))
 
 
@@ -313,9 +313,9 @@ def main():
         dt = datetime.fromtimestamp(time.time() + interval)
         print(f"[{datetime.now().strftime('%H:%M:%S')}] След. тревога через {interval/60:.1f} мин (~{dt.strftime('%H:%M')})")
         logging.info(f"Interval: {interval/60:.1f} min")
-        time.sleep(interval)
+        time.sleep(interval / 1000)
 
-        # Generate alert
+                # Generate alert
         alert_name, alert_tag = random.choice(ALERTS)
         strength = random_strength()
         count = region_count(strength)
@@ -340,7 +340,7 @@ def main():
         ac_interval = random_allclear_interval(ac_min, ac_max)
         dt_ac = datetime.fromtimestamp(time.time() + ac_interval)
         print(f"  Отбой через {ac_interval/60000:.1f} мин (~{dt_ac.strftime('%H:%M')})")
-        time.sleep(ac_interval)
+        time.sleep(ac_interval / 1000)
 
         # Send all clear
         timestamp_ac = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
