@@ -71,13 +71,13 @@ MAP_FILE = os.path.join(SCRIPT_DIR, "map.png")
 # Format: region_id: (x, y)
 # Replace ALL zeros with actual coordinates from your map image.
 REGION_COORDS = {
-    1: (451, 1065), 2: (461, 1208), 3: (973, 707), 4: (1751, 502), 5: (1516, 696),
-    6: (1382, 737), 7: (1321, 840), 8: (1157, 686), 9: (1137, 788), 10: (1219, 840),
-    11: (1126, 942), 12: (1014, 993), 13: (1188, 1055), 14: (1311, 993), 15: (1741, 737),
-    16: (1587, 850), 17: (1505, 952), 18: (1393, 1055), 19: (1249, 1167), 20: (1321, 1260),
-    21: (1147, 1270), 22: (1126, 1147), 23: (973, 1126), 24: (993, 1239), 25: (819, 1147),
-    26: (891, 1239), 27: (881, 1311), 28: (983, 1382), 29: (840, 1413), 30: (891, 1516),
-    31: (993, 1577), 32: (1044, 1690), 33: (236, 1454),     34: (891, 963),
+    24: (435, 1070), 25: (460, 1220), 26: (990, 715),  1: (1765, 475),  12: (1520, 700),
+    13: (1395, 740), 14: (1320, 840), 27: (1145, 680), 17: (1140, 775), 18: (1215, 835),
+    19: (1125, 930), 28: (1010, 995), 16: (1185, 1050),15: (1315, 995),  2: (1750, 755),
+     3: (1590, 855),  4: (1515, 955),  5: (1395, 1060), 6: (1250, 1165),  7: (1330, 1250),
+     8: (1145, 1275), 20: (1125, 1150),29: (965, 1130), 21: (1000, 1240), 30: (815, 1155),
+    31: (890, 1245), 32: (880, 1315),  9: (990, 1380), 23: (830, 1420), 10: (895, 1515),
+    11: (995, 1575), 22: (1040, 1695), 33: (235, 1455), 34: (885, 955),
 }
 
 ALERT_COLORS = {
@@ -337,13 +337,6 @@ def select_regions(count):
 
 
 def build_caption(alert_name, strength, selected_regions, timestamp, is_clear=False):
-    if alert_name == "Воздушная тревога":
-        emoji = "🟥"
-    elif alert_name == "Беспилотная опасность":
-        emoji = "🟨"
-    else:
-        emoji = "🟧"
-
     regions_block = "\n".join(f"• {r[1]}" for r in selected_regions)
 
     header = (
@@ -353,6 +346,17 @@ def build_caption(alert_name, strength, selected_regions, timestamp, is_clear=Fa
     )
 
     if is_clear:
+        types = [
+            ("🟥", "Воздушная тревога"),
+            ("🟨", "Беспилотная опасность"),
+            ("🟧", "Ракетная опасность"),
+        ]
+        sections = []
+        for e, name in types:
+            if name == alert_name:
+                sections.append(f"<b>{e} - {name} — ОТБОЙ</b>\n<blockquote><b>{regions_block}</b></blockquote>")
+            else:
+                sections.append(f"<b>{e} - {name}</b>")
         text = (
             f"{header}\n\n"
             f"✅ <b>ОТБОЙ</b>\n\n"
@@ -360,22 +364,27 @@ def build_caption(alert_name, strength, selected_regions, timestamp, is_clear=Fa
             f"🟥 - Красный: воздушная тревога\n"
             f"🟨 - Желтый: беспилотная опасность\n"
             f"🟧 - Оранжевый: ракетная опасность</b></blockquote>\n\n"
-            f"<b>{emoji} - {alert_name} — ОТБОЙ</b>\n"
-            f"<blockquote><b>{regions_block}</b></blockquote>\n\n"
-            f"<b>🟨 - Беспилотная опасность</b>\n\n"
-            f"<b>🟧 - Ракетная опасность</b>"
+            + "\n\n".join(sections)
         )
     else:
+        types = [
+            ("🟥", "Воздушная тревога"),
+            ("🟨", "Беспилотная опасность"),
+            ("🟧", "Ракетная опасность"),
+        ]
+        sections = []
+        for e, name in types:
+            if name == alert_name:
+                sections.append(f"<b>{e} - {name}</b>\n<blockquote><b>{regions_block}</b></blockquote>")
+            else:
+                sections.append(f"<b>{e} - {name}</b>")
         text = (
             f"{header}\n\n"
             f"<blockquote><b>Условные обозначения:\n"
             f"🟥 - Красный: воздушная тревога\n"
             f"🟨 - Желтый: беспилотная опасность\n"
             f"🟧 - Оранжевый: ракетная опасность</b></blockquote>\n\n"
-            f"<b>{emoji} - {alert_name}</b>\n"
-            f"<blockquote><b>{regions_block}</b></blockquote>\n\n"
-            f"<b>🟨 - Беспилотная опасность</b>\n\n"
-            f"<b>🟧 - Ракетная опасность</b>"
+            + "\n\n".join(sections)
         )
     return text
 
