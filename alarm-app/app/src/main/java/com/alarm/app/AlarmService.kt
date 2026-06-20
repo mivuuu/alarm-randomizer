@@ -102,8 +102,11 @@ class AlarmService : Service() {
 
     private fun randomInterval(): Long {
         val prefs = getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
-        val minMin = prefs.getLong("min_interval", 5)
-        val maxMin = prefs.getLong("max_interval", 120)
+        var minMin = prefs.getLong("min_interval", 5)
+        var maxMin = prefs.getLong("max_interval", 120)
+        if (minMin > maxMin) {
+            val tmp = minMin; minMin = maxMin; maxMin = tmp
+        }
         val min = minMin * 60_000L
         val max = maxMin * 60_000L
         val mean = (min + max) / 2

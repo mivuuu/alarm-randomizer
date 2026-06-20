@@ -11,6 +11,7 @@ import android.os.Looper
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -119,8 +120,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun saveSettings() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val min = etMin.text.toString().toLongOrNull()?.coerceIn(1, 999) ?: 5
-        val max = etMax.text.toString().toLongOrNull()?.coerceIn(1, 999) ?: 120
+        var min = etMin.text.toString().toLongOrNull()?.coerceIn(1, 999) ?: 5
+        var max = etMax.text.toString().toLongOrNull()?.coerceIn(1, 999) ?: 120
+        if (min > max) {
+            val tmp = min; min = max; max = tmp
+            Toast.makeText(this, "Мин и макс интервал поменяны местами", Toast.LENGTH_SHORT).show()
+        }
         etMin.setText(min.toString())
         etMax.setText(max.toString())
         prefs.edit()
