@@ -302,12 +302,7 @@ def release_wake_lock():
 
 
 def random_interval(min_min, max_min):
-    min_ms = min_min * 60_000
-    max_ms = max_min * 60_000
-    mean = (min_ms + max_ms) / 2
-    jitter = (max_ms - min_ms) / 8
-    raw = (-math.log(random.random())) * mean * 1.5 + random.randint(-int(jitter), int(jitter))
-    return int(max(min_ms, min(max_ms, raw)))
+    return random.randint(min_min * 60_000, max_min * 60_000)
 
 
 def random_allclear_interval(ac_min, ac_max):
