@@ -64,7 +64,7 @@ REGIONS = [
 ]
 
 # Path to your custom map image
-MAP_FILE = os.path.join(SCRIPT_DIR, "map.jpg")
+MAP_FILE = os.path.join(SCRIPT_DIR, "map.png")
 
 # Coordinates of each region center on map.png — fill from the other model!
 # Format: region_id: (x, y)
