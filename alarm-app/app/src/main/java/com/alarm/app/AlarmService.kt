@@ -69,12 +69,14 @@ class AlarmService : Service() {
     override fun onCreate() {
         super.onCreate()
         isRunning = true
+        phase = "waiting"
         startForeground(NOTIFICATION_ID, createServiceNotification())
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         scope.launch {
             while (isActive) {
+                phase = "waiting"
                 val interval = randomInterval()
                 nextAlertTime = System.currentTimeMillis() + interval
                 delay(interval)
@@ -84,7 +86,14 @@ class AlarmService : Service() {
                 val count = regionCount(strength)
                 val selected = selectRegions(count)
                 showAlertNotification(alert, strength, selected)
+                nextAlertTime = 0
 
+                phase = "alerted"
+                val acInterval = randomAllClearInterval()
+                nextAlertTime = System.currentTimeMillis() + acInterval
+                delay(acInterval)
+
+                showAllClearNotification(alert, selected)
                 nextAlertTime = 0
             }
         }
@@ -96,6 +105,7 @@ class AlarmService : Service() {
     override fun onDestroy() {
         isRunning = false
         nextAlertTime = 0
+        phase = "idle"
         scope.cancel()
         super.onDestroy()
     }
@@ -163,6 +173,35 @@ class AlarmService : Service() {
             .setOngoing(true)
             .build()
 
+    private fun randomAllClearInterval(): Long {
+        val prefs = getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
+        var minMin = prefs.getLong("all_clear_min_interval", 1)
+        var maxMin = prefs.getLong("all_clear_max_interval", 30)
+        if (minMin > maxMin) {
+            val tmp = minMin; minMin = maxMin; maxMin = tmp
+        }
+        val min = minMin * 60_000L
+        val max = maxMin * 60_000L
+        return Random.nextLong(min, max + 1)
+    }
+
+    private fun showAllClearNotification(alert: String, selected: List<String>) {
+        val dateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.getDefault())
+        val regionsText = selected.joinToString(", ")
+        val body = "Регионы (${selected.size}): $regionsText\nУгроза миновала\nВремя: ${dateFormat.format(Date())}"
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("$alert — ОТБОЙ")
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setAutoCancel(true)
+            .build()
+
+        val manager = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+        manager.notify(System.currentTimeMillis().toInt(), notification)
+    }
+
     private fun showAlertNotification(alert: String, strength: Int, selected: List<String>) {
         val dateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.getDefault())
         val regionsText = selected.joinToString(", ")
@@ -183,6 +222,7 @@ class AlarmService : Service() {
     companion object {
         var nextAlertTime: Long = 0
         var isRunning: Boolean = false
+        var phase: String = "idle"
         const val CHANNEL_ID = "alarm_channel"
         const val NOTIFICATION_ID = 1
     }

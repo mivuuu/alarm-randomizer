@@ -23,6 +23,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvStatus: TextView
     private lateinit var etMin: EditText
     private lateinit var etMax: EditText
+    private lateinit var etMinAllClear: EditText
+    private lateinit var etMaxAllClear: EditText
 
     private val handler = Handler(Looper.getMainLooper())
     private val countdownRunnable = object : Runnable {
@@ -45,6 +47,8 @@ class MainActivity : AppCompatActivity() {
         btnStop = findViewById(R.id.btnStop)
         etMin = findViewById(R.id.etMinInterval)
         etMax = findViewById(R.id.etMaxInterval)
+        etMinAllClear = findViewById(R.id.etMinAllClear)
+        etMaxAllClear = findViewById(R.id.etMaxAllClear)
 
         loadSettings()
 
@@ -87,10 +91,10 @@ class MainActivity : AppCompatActivity() {
             val remaining = nextTime - System.currentTimeMillis()
             if (remaining > 0) {
                 tvCountdown.text = formatTime(remaining)
-                tvStatus.text = "Активен"
+                tvStatus.text = if (AlarmService.phase == "alerted") "Ожидание отбоя" else "Активен"
             } else if (AlarmService.isRunning) {
                 tvCountdown.text = "Скоро..."
-                tvStatus.text = "Активен"
+                tvStatus.text = AlarmService.phase
             }
         } else if (!AlarmService.isRunning) {
             tvCountdown.text = "—"
@@ -114,23 +118,37 @@ class MainActivity : AppCompatActivity() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val minMin = prefs.getLong("min_interval", 5)
         val maxMin = prefs.getLong("max_interval", 120)
+        val acMin = prefs.getLong("all_clear_min_interval", 1)
+        val acMax = prefs.getLong("all_clear_max_interval", 30)
         etMin.setText(minMin.toString())
         etMax.setText(maxMin.toString())
+        etMinAllClear.setText(acMin.toString())
+        etMaxAllClear.setText(acMax.toString())
     }
 
     private fun saveSettings() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         var min = etMin.text.toString().toLongOrNull()?.coerceIn(1, 999) ?: 5
         var max = etMax.text.toString().toLongOrNull()?.coerceIn(1, 999) ?: 120
+        var acMin = etMinAllClear.text.toString().toLongOrNull()?.coerceIn(1, 999) ?: 1
+        var acMax = etMaxAllClear.text.toString().toLongOrNull()?.coerceIn(1, 999) ?: 30
         if (min > max) {
             val tmp = min; min = max; max = tmp
             Toast.makeText(this, "Мин и макс интервал поменяны местами", Toast.LENGTH_SHORT).show()
         }
+        if (acMin > acMax) {
+            val tmp = acMin; acMin = acMax; acMax = tmp
+            Toast.makeText(this, "Отбой: мин и макс поменяны местами", Toast.LENGTH_SHORT).show()
+        }
         etMin.setText(min.toString())
         etMax.setText(max.toString())
+        etMinAllClear.setText(acMin.toString())
+        etMaxAllClear.setText(acMax.toString())
         prefs.edit()
             .putLong("min_interval", min)
             .putLong("max_interval", max)
+            .putLong("all_clear_min_interval", acMin)
+            .putLong("all_clear_max_interval", acMax)
             .apply()
     }
 
