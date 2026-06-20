@@ -63,7 +63,22 @@ REGIONS = [
     (34, "Гесперидия", 1),
 ]
 
-# Map grid layout (column, row) from 0,0
+# Path to your custom map image
+MAP_FILE = os.path.join(SCRIPT_DIR, "map.png")
+
+# Coordinates of each region center on map.png — fill from the other model!
+# Format: region_id: (x, y)
+# Replace ALL zeros with actual coordinates from your map image.
+REGION_COORDS = {
+    1: (0, 0), 2: (0, 0), 3: (0, 0), 4: (0, 0), 5: (0, 0), 6: (0, 0),
+    7: (0, 0), 8: (0, 0), 9: (0, 0), 10: (0, 0), 11: (0, 0), 12: (0, 0),
+    13: (0, 0), 14: (0, 0), 15: (0, 0), 16: (0, 0), 17: (0, 0), 18: (0, 0),
+    19: (0, 0), 20: (0, 0), 21: (0, 0), 22: (0, 0), 23: (0, 0), 24: (0, 0),
+    25: (0, 0), 26: (0, 0), 27: (0, 0), 28: (0, 0), 29: (0, 0), 30: (0, 0),
+    31: (0, 0), 32: (0, 0), 33: (0, 0), 34: (0, 0),
+}
+
+# Fallback grid layout (used when coordinates not set)
 GRID_POSITIONS = [
     (0,0), (1,0), (2,0), (3,0), (4,0), (5,0),
     (0,1), (1,1), (2,1), (3,1), (4,1), (5,1),
@@ -72,19 +87,12 @@ GRID_POSITIONS = [
     (0,4), (1,4), (2,4), (3,4), (4,4), (5,4),
     (0,5), (1,5), (2,5), (3,5),
 ]
-
-MAP_W = 1000
-MAP_H = 720
-PAD_L = 60
-PAD_T = 50
-CELL_W = (MAP_W - PAD_L - 40) / 6
-CELL_H = (MAP_H - PAD_T - 40) / 6
-
-REGION_COLORS = {
-    5: (220, 60, 60, 40),
-    3: (220, 200, 60, 30),
-    1: (100, 180, 100, 25),
-}
+GRID_W = 1000
+GRID_H = 720
+GRID_PAD_L = 60
+GRID_PAD_T = 50
+GRID_CELL_W = (GRID_W - GRID_PAD_L - 40) / 6
+GRID_CELL_H = (GRID_H - GRID_PAD_T - 40) / 6
 
 
 def setup_logging():
@@ -114,9 +122,9 @@ def load_config():
         logging.info("Config saved")
 
 
-def get_coords(grid_col, grid_row):
-    x = PAD_L + grid_col * CELL_W + CELL_W / 2
-    y = PAD_T + grid_row * CELL_H + CELL_H / 2
+def get_grid_coords(grid_col, grid_row):
+    x = GRID_PAD_L + grid_col * GRID_CELL_W + GRID_CELL_W / 2
+    y = GRID_PAD_T + grid_row * GRID_CELL_H + GRID_CELL_H / 2
     return int(x), int(y)
 
 
@@ -124,7 +132,7 @@ def get_region_data():
     data = []
     for i, (rid, name, weight) in enumerate(REGIONS):
         col, row = GRID_POSITIONS[i]
-        cx, cy = get_coords(col, row)
+        cx, cy = get_grid_coords(col, row)
         data.append((rid, name, weight, cx, cy))
     return data
 
@@ -147,29 +155,74 @@ def load_font(size):
 
 
 def draw_map(highlight_ids):
-    img = Image.new("RGB", (MAP_W, MAP_H), (245, 235, 215))
+    coords_set = any(v != (0, 0) for v in REGION_COORDS.values())
+    if coords_set and os.path.exists(MAP_FILE):
+        return draw_map_image(highlight_ids)
+    if not coords_set and os.path.exists(MAP_FILE):
+        print("  ВНИМАНИЕ: координаты регионов не заданы. Используется схема.")
+    return draw_map_grid(highlight_ids)
+
+
+def draw_map_image(highlight_ids):
+    img = Image.open(MAP_FILE).convert("RGB")
+    img_w, img_h = img.size
+    draw = ImageDraw.Draw(img, "RGBA")
+    font_num = load_font(max(10, min(img_w, img_h) // 60))
+
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    o_draw = ImageDraw.Draw(overlay)
+
+    for rid, name, weight in REGIONS:
+        x, y = REGION_COORDS.get(rid, (0, 0))
+        if x == 0 and y == 0:
+            continue
+        r = max(6, min(img_w, img_h) // 80)
+
+        if rid in highlight_ids:
+            for gr in range(r * 3, r, -max(1, r // 2)):
+                alpha = max(20, 80 - gr * 3)
+                o_draw.ellipse([x - gr, y - gr, x + gr, y + gr], fill=(200, 40, 40, alpha))
+            o_draw.ellipse([x - r, y - r, x + r, y + r], fill=(220, 30, 30, 220))
+            o_draw.ellipse([x - r + 3, y - r + 3, x + r - 3, y + r - 3], fill=(255, 80, 80, 220))
+        else:
+            o_draw.ellipse([x - r // 2, y - r // 2, x + r // 2, y + r // 2], fill=(60, 60, 60, 40))
+
+        if font_num:
+            o_draw.text((x - 5, y - r - 14), str(rid), fill=(255, 255, 255), font=font_num, stroke_width=2, stroke_fill=(0, 0, 0))
+
+    img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+
+    font_title = load_font(max(16, min(img_w, img_h) // 40))
+    if font_title:
+        draw2 = ImageDraw.Draw(img)
+        tw = draw2.textlength("КАРТА ГОСУДАРСТВА", font=font_title)
+        bx = int((img_w - tw) / 2 - 12)
+        draw2.rectangle([bx, 6, bx + int(tw) + 24, 34], fill=(255, 255, 255, 200))
+        draw2.text((img_w / 2, 20), "КАРТА ГОСУДАРСТВА", fill=(60, 40, 20), font=font_title, anchor="mt")
+    return img
+
+
+def draw_map_grid(highlight_ids):
+    img = Image.new("RGB", (GRID_W, GRID_H), (245, 235, 215))
     draw = ImageDraw.Draw(img, "RGBA")
     font_reg = load_font(13)
     font_big = load_font(16)
 
     regions = get_region_data()
 
-    # Draw land/region cells
     for rid, name, weight, cx, cy in regions:
         col, row = GRID_POSITIONS[regions.index((rid, name, weight, cx, cy))]
-        x1 = PAD_L + col * CELL_W + 4
-        y1 = PAD_T + row * CELL_H + 4
-        x2 = PAD_L + (col + 1) * CELL_W - 4
-        y2 = PAD_T + (row + 1) * CELL_H - 4
+        x1 = GRID_PAD_L + col * GRID_CELL_W + 4
+        y1 = GRID_PAD_T + row * GRID_CELL_H + 4
+        x2 = GRID_PAD_L + (col + 1) * GRID_CELL_W - 4
+        y2 = GRID_PAD_T + (row + 1) * GRID_CELL_H - 4
 
         bg = (235, 222, 195)
         draw.rectangle([x1, y1, x2, y2], fill=bg, outline=(180, 160, 120), width=1)
 
-        # Frontline border (weight 5) — red accent
         if weight == 5:
             draw.rectangle([x1, y1, x2, y2], outline=(200, 50, 50), width=2)
 
-        # Highlight if in alert
         if rid in highlight_ids:
             overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
             o_draw = ImageDraw.Draw(overlay)
@@ -177,21 +230,16 @@ def draw_map(highlight_ids):
             img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
             draw = ImageDraw.Draw(img, "RGBA")
 
-        # Region number
         if font_reg:
             draw.text((cx - 6, cy - 12), str(rid), fill=(80, 60, 40), font=font_reg)
-            # Name (truncated)
             short = name if len(name) < 14 else name[:12] + "."
             draw.text((cx - 6, cy + 4), short, fill=(120, 100, 80), font=font_reg)
 
-    # Title and legend
     if font_big:
-        draw.text((MAP_W / 2, 15), "КАРТА ГОСУДАРСТВА", fill=(80, 60, 40), font=font_big, anchor="mt")
-    legend_x = MAP_W - 180
-    legend_y = MAP_H - 60
+        draw.text((GRID_W / 2, 15), "КАРТА ГОСУДАРСТВА", fill=(80, 60, 40), font=font_big, anchor="mt")
     if font_reg:
-        draw.text((legend_x, legend_y), "— фронт (кр.)", fill=(200, 50, 50), font=font_reg)
-        draw.text((legend_x, legend_y + 16), "— тыл (зел.)", fill=(80, 150, 80), font=font_reg)
+        draw.text((GRID_W - 180, GRID_H - 60), "— фронт (кр.)", fill=(200, 50, 50), font=font_reg)
+        draw.text((GRID_W - 180, GRID_H - 44), "— тыл (зел.)", fill=(80, 150, 80), font=font_reg)
 
     return img
 
