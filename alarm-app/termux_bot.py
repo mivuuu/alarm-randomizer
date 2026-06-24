@@ -28,17 +28,17 @@ ALERTS = [
 ]
 
 REGIONS = [
-    (1,  "Калантия", 20),
-    (2,  "Альтерия", 20),
-    (3,  "Сильвания", 20),
-    (4,  "Таврия", 20),
-    (5,  "Валентия", 20),
-    (6,  "Иллирия", 20),
-    (7,  "Астралия", 20),
-    (8,  "Лимнида", 20),
-    (9,  "Монтания", 20),
-    (10, "Меридиония", 20),
-    (11, "Эстерия", 20),
+    (1,  "Калантия", 100),
+    (2,  "Альтерия", 100),
+    (3,  "Сильвания", 100),
+    (4,  "Таврия", 100),
+    (5,  "Валентия", 100),
+    (6,  "Иллирия", 100),
+    (7,  "Астралия", 100),
+    (8,  "Лимнида", 100),
+    (9,  "Монтания", 100),
+    (10, "Меридиония", 100),
+    (11, "Эстерия", 100),
     (12, "Гесперия", 3),
     (13, "Ориентия", 3),
     (14, "Люциния", 3),
@@ -319,10 +319,12 @@ def region_count(strength):
             8: random.randint(5, 7), 9: random.randint(7, 9), 10: random.randint(9, 12)}.get(strength, 1)
 
 
-def select_regions(count):
+def select_regions(count, strength):
     pool = list(REGIONS)
     result = []
     n = min(count, len(pool))
+    mid_rear_taken = 0
+    max_mid_rear = 1 if strength >= 7 else 0
     for _ in range(n):
         total = sum(w for _, _, w in pool)
         r = random.random() * total
@@ -332,8 +334,13 @@ def select_regions(count):
             if r <= 0:
                 idx = i
                 break
-        result.append(pool[idx])
+        reg = pool[idx]
         pool.pop(idx)
+        if reg[2] <= 3:
+            if mid_rear_taken >= max_mid_rear:
+                continue
+            mid_rear_taken += 1
+        result.append(reg)
     return result
 
 
@@ -467,7 +474,7 @@ def main():
         print("Тестовый запуск — отправляю одну тревогу...")
         strength = random_strength()
         count = region_count(strength)
-        selected = select_regions(count)
+        selected = select_regions(count, strength)
         region_types = {r[0]: random.choice(ALERTS)[0] for r in selected}
         run_alert_cycle(strength, selected, region_types, ac_min, ac_max)
         print("Тест завершён.")
@@ -494,7 +501,7 @@ def main():
 
         strength = random_strength()
         count = region_count(strength)
-        selected = select_regions(count)
+        selected = select_regions(count, strength)
         region_types = {r[0]: random.choice(ALERTS)[0] for r in selected}
         run_alert_cycle(strength, selected, region_types, ac_min, ac_max)
 
