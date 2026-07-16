@@ -65,7 +65,11 @@ REGIONS = [
 ]
 
 # Path to your custom map image
-MAP_FILE = os.path.join(SCRIPT_DIR, "map.png")
+MAP_CANDIDATES = [
+    os.path.join(SCRIPT_DIR, "map.png"),
+    os.path.join(os.path.dirname(SCRIPT_DIR), "map.png"),
+]
+MAP_FILE = next((path for path in MAP_CANDIDATES if os.path.exists(path)), MAP_CANDIDATES[0])
 
 # Coordinates of each region center on map.png — fill from the other model!
 # Format: region_id: (x, y)
@@ -439,15 +443,15 @@ def print_help():
 
 
 def main():
-    setup_logging()
-    load_config()
-
-    # Parse args
     args = sys.argv[1:]
-    is_test = "--test" in args
     if "--help" in args or "-h" in args:
         print_help()
         return
+
+    setup_logging()
+    load_config()
+
+    is_test = "--test" in args
 
     # Helper to get arg value
     def get_arg(flag, default):

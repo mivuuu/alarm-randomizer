@@ -1,0 +1,9 @@
+.gradle/
+build/
+*.apk
+*.aab
+**pycache**/
+__pycache__/
+*.pyc
+bot.log
+bot_config.json
